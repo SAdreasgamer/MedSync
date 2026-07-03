@@ -197,5 +197,15 @@ services:
       - "4004:4004"
     restart: unless-stopped
 
+  # ============================================================
+  # SWAGGER API DOCS
+  # ============================================================
+  swagger-docs:
+    build: ./swagger-docs
+    container_name: pm-swagger-docs
+    ports:
+      - "8088:80"
+    restart: unless-stopped
+
 volumes:
   postgres_data:

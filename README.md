@@ -208,7 +208,7 @@ npm run dev
 |---|---|
 | 🖥️ **Frontend Dashboard** | [http://localhost:5173](http://localhost:5173) |
 | 🔌 **API Gateway** | [http://localhost:4004](http://localhost:4004) |
-| 📖 **Swagger API Docs** | [http://localhost:5173/swagger.html](http://localhost:5173/swagger.html) |
+| 📖 **Swagger API Docs** | [http://localhost:8088](http://localhost:8088) |
 
 ### Default Login Credentials
 
@@ -221,7 +221,9 @@ Password: password
 
 ## 📖 API Documentation
 
-MedSync ships with a built-in **Swagger UI** accessible at `/swagger.html` from the frontend dev server. It documents all REST endpoints across every microservice.
+MedSync includes a standalone **Swagger UI** that starts automatically with `docker compose up`. It is served on port `8088` via an nginx container and documents all REST endpoints across every microservice with interactive "Try it out" support and request examples.
+
+👉 **[http://localhost:8088](http://localhost:8088)**
 
 ### Service Endpoints
 

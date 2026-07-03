@@ -1,0 +1,757 @@
+openapi: 3.0.3
+info:
+  title: MedSync Patient Management API
+  description: |
+    Comprehensive polyglot microservices system API documentation for the **MedSync** patient management platform.
+
+    ## Architecture Overview
+    - **API Gateway** (`localhost:4004`) — Centralized entry point with JWT validation
+    - **Auth Service** — User registration and JWT-based authentication
+    - **Patient Service** — Full patient lifecycle (CRUD, admissions, discharges)
+    - **Appointment Service** — Doctor appointment scheduling
+    - **Billing Service** — Invoice management and payment processing (includes gRPC)
+    - **Analytics Service** — Kafka-driven event analytics pipeline
+    - **AI Agent Service** — LangGraph ReAct agent with 20+ tool functions
+
+    ## Authentication
+    All endpoints (except `/auth/*`) require a **JWT Bearer Token**. Obtain one via `POST /auth/login`.
+  version: 1.0.0
+  contact:
+    name: MedSync Team
+    url: https://github.com/SAdreasgamer/MedSync
+
+servers:
+  - url: http://localhost:4004
+    description: API Gateway (Public — JWT validated)
+  - url: http://localhost:4003
+    description: AI Agent Service (Direct — no JWT required)
+
+tags:
+  - name: Authentication
+    description: User registration and JWT token management
+  - name: Patients
+    description: Patient CRUD operations and search
+  - name: Admissions
+    description: Patient admission and discharge workflows
+  - name: Appointments
+    description: Doctor appointment scheduling and management
+  - name: Billing
+    description: Invoice creation, payment processing, and balance tracking
+  - name: AI Assistant
+    description: Natural language chat with the LangGraph ReAct agent
+
+paths:
+  # =========================================================================
+  # AUTH SERVICE
+  # =========================================================================
+  /auth/register:
+    post:
+      summary: Register a new system user
+      description: Creates a new user account for accessing the MedSync platform.
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: doctor_sarah
+                password:
+                  type: string
+                  format: password
+                  example: secure_password_123
+                email:
+                  type: string
+                  format: email
+                  example: sarah.connor@medsync.local
+      responses:
+        '201':
+          description: User registered successfully
+        '400':
+          description: Invalid input or username already exists
+
+  /auth/login:
+    post:
+      summary: Login and obtain JWT token
+      description: |
+        Authenticates a user and returns a JWT bearer token.
+        Include this token in the `Authorization` header for all subsequent requests:
+        ```
+        Authorization: Bearer <token>
+        ```
+      tags:
+        - Authentication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - username
+                - password
+              properties:
+                username:
+                  type: string
+                  example: admin
+                password:
+                  type: string
+                  format: password
+                  example: password
+            example:
+              username: admin
+              password: password
+      responses:
+        '200':
+          description: Authentication successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: JWT bearer token (valid for 24 hours)
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImlhdCI6MTcyMDAwMDAwMH0.abc123
+        '401':
+          description: Invalid credentials
+
+  # =========================================================================
+  # PATIENT SERVICE
+  # =========================================================================
+  /api/patients:
+    get:
+      summary: List all patients
+      description: Returns the complete list of registered patients in the system.
+      tags:
+        - Patients
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Patient list retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Patient'
+        '401':
+          description: Missing or invalid JWT token
+
+    post:
+      summary: Register a new patient
+      description: |
+        Creates a new patient record. Upon successful creation, a `PATIENT_CREATED` event
+        is published to the Apache Kafka `patient` topic for downstream analytics processing.
+      tags:
+        - Patients
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientInput'
+            example:
+              name: Ananya Patel
+              email: ananya.patel@example.com
+              phone: "+91-9876543210"
+              dateOfBirth: "1990-05-15"
+              address: 12 Jubilee Hills, Hyderabad
+              gender: FEMALE
+              bloodGroup: "O+"
+              emergencyContactName: Raj Patel
+              emergencyContactPhone: "+91-9876543211"
+              notes: No known allergies
+      responses:
+        '201':
+          description: Patient created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '400':
+          description: Validation error or duplicate email
+
+  /api/patients/{id}:
+    get:
+      summary: Get patient by ID
+      description: Retrieves detailed information for a specific patient.
+      tags:
+        - Patients
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+      responses:
+        '200':
+          description: Patient details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+        '404':
+          description: Patient not found
+
+    put:
+      summary: Update patient details
+      description: Updates an existing patient record with new information.
+      tags:
+        - Patients
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatientInput'
+      responses:
+        '200':
+          description: Patient updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Patient'
+
+    delete:
+      summary: Delete a patient
+      description: Permanently removes a patient record from the system.
+      tags:
+        - Patients
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+      responses:
+        '200':
+          description: Patient deleted
+
+  /api/patients/counts:
+    get:
+      summary: Get patient statistics
+      description: Returns aggregate counts of total and admitted patients.
+      tags:
+        - Patients
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Statistics returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    description: Total registered patients
+                    example: 12
+                  admitted:
+                    type: integer
+                    description: Currently admitted patients
+                    example: 3
+
+  # =========================================================================
+  # ADMISSIONS
+  # =========================================================================
+  /api/patients/{id}/admit:
+    put:
+      summary: Admit a patient
+      description: |
+        Transitions patient status from `REGISTERED` to `ADMITTED` and assigns
+        a room and bed number.
+      tags:
+        - Admissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+        - name: roomNumber
+          in: query
+          required: true
+          schema:
+            type: string
+          example: ICU-101
+        - name: bedNumber
+          in: query
+          required: true
+          schema:
+            type: string
+          example: A
+      responses:
+        '200':
+          description: Patient admitted successfully
+        '400':
+          description: Missing parameters or patient already admitted
+
+  /api/patients/{id}/discharge:
+    put:
+      summary: Discharge a patient
+      description: Transitions patient status from `ADMITTED` to `DISCHARGED` and clears room/bed assignment.
+      tags:
+        - Admissions
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PatientId'
+      responses:
+        '200':
+          description: Patient discharged successfully
+
+  # =========================================================================
+  # APPOINTMENT SERVICE
+  # =========================================================================
+  /api/appointments:
+    post:
+      summary: Schedule a new appointment
+      description: Creates a new appointment for a patient with a specific doctor, department, date, and time slot.
+      tags:
+        - Appointments
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppointmentInput'
+            example:
+              patientId: 123e4567-e89b-12d3-a456-426614174001
+              doctorName: Dr. Sarah Connor
+              department: Cardiology
+              appointmentDate: "2026-07-04"
+              timeSlot: "10:30 AM"
+              notes: Routine cardio follow-up
+      responses:
+        '201':
+          description: Appointment scheduled successfully
+
+  /api/appointments/patient/{patientId}:
+    get:
+      summary: Get appointments for a patient
+      description: Returns all appointments (past and future) for a specific patient.
+      tags:
+        - Appointments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Appointment list returned
+
+  /api/appointments/today:
+    get:
+      summary: Get today's appointments
+      description: Returns all appointments scheduled for today's date.
+      tags:
+        - Appointments
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Today's appointments returned
+
+  /api/appointments/date/{date}:
+    get:
+      summary: Get appointments by date
+      description: Returns all appointments scheduled for a specific date.
+      tags:
+        - Appointments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: date
+          in: path
+          required: true
+          schema:
+            type: string
+            format: date
+          example: "2026-07-04"
+      responses:
+        '200':
+          description: Appointments on the specified date
+
+  /api/appointments/{id}/status:
+    put:
+      summary: Update appointment status
+      description: Changes the status of an appointment (e.g., mark as completed or cancelled).
+      tags:
+        - Appointments
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+            format: int64
+        - name: status
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [SCHEDULED, COMPLETED, CANCELLED]
+          example: COMPLETED
+      responses:
+        '200':
+          description: Appointment status updated
+
+  # =========================================================================
+  # BILLING SERVICE
+  # =========================================================================
+  /api/patients/{patientId}/billing:
+    get:
+      summary: Get patient billing details
+      description: |
+        Retrieves the complete billing profile for a patient including all invoices
+        and the aggregate outstanding balance. Internally communicates with the
+        Billing Service via **gRPC (Protobuf)**.
+      tags:
+        - Billing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Billing details with invoice list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  patientId:
+                    type: string
+                  outstandingAmount:
+                    type: number
+                    example: 1250.00
+                  invoices:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invoice'
+
+  /api/patients/billing/summary:
+    get:
+      summary: Get aggregate billing summary
+      description: Returns the total outstanding billing balance across all patients.
+      tags:
+        - Billing
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Aggregate balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  totalOutstanding:
+                    type: number
+                    format: double
+                    example: 24500.75
+
+  /api/patients/{patientId}/invoices:
+    post:
+      summary: Create a new invoice
+      description: Adds a new invoice line item to a patient's billing account.
+      tags:
+        - Billing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: patientId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: description
+          in: query
+          required: true
+          schema:
+            type: string
+          example: Lab Consultation
+        - name: amount
+          in: query
+          required: true
+          schema:
+            type: number
+          example: 150.00
+      responses:
+        '201':
+          description: Invoice created
+
+  /api/patients/invoices/{invoiceId}/pay:
+    put:
+      summary: Process invoice payment
+      description: Marks a specific invoice as `PAID`.
+      tags:
+        - Billing
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Invoice marked as paid
+
+  # =========================================================================
+  # AI AGENT SERVICE
+  # =========================================================================
+  /agent/chat:
+    post:
+      summary: Chat with AI Assistant
+      description: |
+        Sends a natural language message to the MedSync AI Agent. The agent uses a
+        **LangGraph ReAct (Reasoning + Acting)** pattern to:
+        1. Understand the user's intent
+        2. Select and execute appropriate tool functions (20+ available)
+        3. Process results and formulate a response
+
+        **Example prompts:**
+        - *"Show me all admitted patients"*
+        - *"Schedule an appointment for Ananya Patel tomorrow at 10 AM"*
+        - *"What is the total outstanding billing?"*
+        - *"Discharge patient John Doe"*
+
+        > **Note:** For real-time streaming, connect via WebSocket at `ws://localhost:4003/agent/ws`
+      tags:
+        - AI Assistant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  description: Natural language instruction or question
+                  example: Show me all admitted patients
+      responses:
+        '200':
+          description: AI agent response
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  response:
+                    type: string
+                    description: The agent's natural language response
+                    example: "There are currently 3 admitted patients: Ananya Patel (ICU-101), Raj Kumar (GEN-204), and Priya Singh (ICU-103)."
+                  tool_calls:
+                    type: array
+                    description: List of tools the agent invoked during reasoning
+                    items:
+                      type: object
+        '500':
+          description: Agent reasoning error (e.g., LLM rate limit exceeded)
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT token obtained from `POST /auth/login`.
+        Include in requests as: `Authorization: Bearer <token>`
+
+  parameters:
+    PatientId:
+      name: id
+      in: path
+      required: true
+      description: Unique patient identifier (UUID)
+      schema:
+        type: string
+        format: uuid
+      example: 123e4567-e89b-12d3-a456-426614174001
+
+  schemas:
+    Patient:
+      type: object
+      description: A registered patient in the MedSync system
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174001
+        name:
+          type: string
+          example: Ananya Patel
+        email:
+          type: string
+          format: email
+          example: ananya.patel@example.com
+        phone:
+          type: string
+          example: "+91-9876543210"
+        dateOfBirth:
+          type: string
+          format: date
+          example: "1990-05-15"
+        address:
+          type: string
+          example: 12 Jubilee Hills, Hyderabad
+        gender:
+          type: string
+          enum: [MALE, FEMALE, OTHER]
+          example: FEMALE
+        bloodGroup:
+          type: string
+          example: "O+"
+        status:
+          type: string
+          enum: [REGISTERED, ADMITTED, DISCHARGED]
+          description: Current lifecycle status
+          example: REGISTERED
+        roomNumber:
+          type: string
+          nullable: true
+          description: Assigned room (only when ADMITTED)
+          example: null
+        bedNumber:
+          type: string
+          nullable: true
+          description: Assigned bed (only when ADMITTED)
+          example: null
+        emergencyContactName:
+          type: string
+          example: Raj Patel
+        emergencyContactPhone:
+          type: string
+          example: "+91-9876543211"
+        notes:
+          type: string
+          example: No known allergies
+
+    PatientInput:
+      type: object
+      description: Payload for creating or updating a patient
+      required:
+        - name
+        - email
+        - dateOfBirth
+        - address
+      properties:
+        name:
+          type: string
+          example: Ananya Patel
+        email:
+          type: string
+          format: email
+          example: ananya.patel@example.com
+        phone:
+          type: string
+          example: "+91-9876543210"
+        dateOfBirth:
+          type: string
+          format: date
+          example: "1990-05-15"
+        address:
+          type: string
+          example: 12 Jubilee Hills, Hyderabad
+        gender:
+          type: string
+          enum: [MALE, FEMALE, OTHER]
+          example: FEMALE
+        bloodGroup:
+          type: string
+          example: "O+"
+        emergencyContactName:
+          type: string
+          example: Raj Patel
+        emergencyContactPhone:
+          type: string
+          example: "+91-9876543211"
+        notes:
+          type: string
+          example: No known allergies
+
+    AppointmentInput:
+      type: object
+      description: Payload for scheduling a new appointment
+      required:
+        - patientId
+        - doctorName
+        - department
+        - appointmentDate
+        - timeSlot
+      properties:
+        patientId:
+          type: string
+          format: uuid
+          example: 123e4567-e89b-12d3-a456-426614174001
+        doctorName:
+          type: string
+          example: Dr. Sarah Connor
+        department:
+          type: string
+          example: Cardiology
+        appointmentDate:
+          type: string
+          format: date
+          example: "2026-07-04"
+        timeSlot:
+          type: string
+          example: "10:30 AM"
+        notes:
+          type: string
+          example: Routine cardio follow-up
+
+    Invoice:
+      type: object
+      description: A billing invoice associated with a patient
+      properties:
+        id:
+          type: string
+          format: uuid
+        description:
+          type: string
+          example: Room Charges — ICU 3 days
+        amount:
+          type: number
+          format: double
+          example: 15000.00
+        status:
+          type: string
+          enum: [PENDING, PAID, OVERDUE]
+          example: PENDING
+        createdAt:
+          type: string
+          format: date-time
+          example: "2026-07-01T10:30:00Z"
