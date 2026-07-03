@@ -81,3 +81,102 @@ def get_billing_status(patient_id: str) -> str:
         return f"Error checking billing status: {e.details()}"
     finally:
         channel.close()
+
+
+@tool
+def add_invoice(patient_id: str, description: str, amount: float) -> str:
+    """Add a billing charge/invoice to a patient.
+
+    Args:
+        patient_id: UUID of the patient.
+        description: Description of the charge (e.g. 'Lab Work - CBC', 'Room Charge').
+        amount: The monetary amount of the charge.
+    """
+    channel, stub = _get_billing_stub()
+    try:
+        response = stub.AddInvoice(
+            billing_pb2.AddInvoiceRequest(
+                patientId=patient_id,
+                description=description,
+                amount=amount,
+            ),
+            timeout=10.0,
+        )
+        return json.dumps({
+            "invoiceId": response.invoiceId,
+            "description": response.description,
+            "amount": response.amount,
+            "status": response.status,
+            "invoiceDate": response.invoiceDate,
+        })
+    except grpc.RpcError as e:
+        return f"Error adding invoice: {e.details()}"
+    finally:
+        channel.close()
+
+
+@tool
+def record_payment(invoice_id: str) -> str:
+    """Record a payment for a specific invoice, marking it as PAID.
+
+    Args:
+        invoice_id: UUID of the invoice being paid.
+    """
+    channel, stub = _get_billing_stub()
+    try:
+        response = stub.RecordPayment(
+            billing_pb2.RecordPaymentRequest(invoiceId=invoice_id),
+            timeout=10.0,
+        )
+        return json.dumps({
+            "invoiceId": response.invoiceId,
+            "description": response.description,
+            "amount": response.amount,
+            "status": response.status,
+            "invoiceDate": response.invoiceDate,
+        })
+    except grpc.RpcError as e:
+        return f"Error recording payment: {e.details()}"
+    finally:
+        channel.close()
+
+
+@tool
+def get_billing_details(patient_id: str) -> str:
+    """Get the full billing details for a patient, including their invoices and totals.
+
+    Args:
+        patient_id: UUID of the patient.
+    """
+    channel, stub = _get_billing_stub()
+    try:
+        response = stub.GetBillingDetails(
+            billing_pb2.GetBillingAccountRequest(patientId=patient_id),
+            timeout=10.0,
+        )
+        invoices = []
+        for inv in response.invoices:
+            invoices.append({
+                "invoiceId": inv.invoiceId,
+                "description": inv.description,
+                "amount": inv.amount,
+                "status": inv.status,
+                "invoiceDate": inv.invoiceDate,
+            })
+        return json.dumps({
+            "accountId": response.accountId,
+            "patientId": response.patientId,
+            "status": response.status,
+            "insuranceProvider": response.insuranceProvider,
+            "insurancePolicyNumber": response.insurancePolicyNumber,
+            "totalBilled": response.totalBilled,
+            "totalPaid": response.totalPaid,
+            "outstandingBalance": response.outstandingBalance,
+            "invoices": invoices,
+        })
+    except grpc.RpcError as e:
+        if e.code() == grpc.StatusCode.NOT_FOUND:
+            return f"No billing details found for patient '{patient_id}'."
+        return f"Error fetching billing details: {e.details()}"
+    finally:
+        channel.close()

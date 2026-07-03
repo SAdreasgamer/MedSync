@@ -77,6 +77,8 @@ services:
       SPRING_DATASOURCE_USERNAME: admin_user
       SPRING_DATASOURCE_PASSWORD: password
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      SPRING_JPA_DEFER_DATASOURCE_INITIALIZATION: "true"
       JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
     ports:
       - "4001:4001"
@@ -99,6 +101,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: password
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_SQL_INIT_MODE: always
+      SPRING_JPA_DEFER_DATASOURCE_INITIALIZATION: "true"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       BILLING_SERVICE_ADDRESS: billing-service
       BILLING_SERVICE_GRPC_PORT: 9001
@@ -120,10 +123,29 @@ services:
       SPRING_DATASOURCE_USERNAME: admin_user
       SPRING_DATASOURCE_PASSWORD: password
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      SPRING_JPA_DEFER_DATASOURCE_INITIALIZATION: "true"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
     ports:
       - "4002:4002"
+    restart: unless-stopped
+
+  appointment-service:
+    build: ./appointment-service
+    container_name: pm-appointment-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/appointment_service_db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+    ports:
+      - "4006:4006"
     restart: unless-stopped
 
   # ============================================================
@@ -139,12 +161,17 @@ services:
         condition: service_started
       analytics-service:
         condition: service_started
+      appointment-service:
+        condition: service_started
     environment:
       PATIENT_SERVICE_URL: http://patient-service:4000
       BILLING_SERVICE_HOST: billing-service
       BILLING_SERVICE_GRPC_PORT: 9001
       ANALYTICS_SERVICE_URL: http://analytics-service:4002
+      APPOINTMENT_SERVICE_URL: http://appointment-service:4006
       GEMINI_API_KEY: ${GEMINI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL: ${OPENROUTER_MODEL}
     ports:
       - "4003:4003"
     restart: unless-stopped
@@ -160,6 +187,7 @@ services:
       - patient-service
       - billing-service
       - analytics-service
+      - appointment-service
       - ai-agent-service
     environment:
       SPRING_PROFILES_ACTIVE: docker

@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Plus, MoreVertical, Trash2, Edit, X } from 'lucide-react';
 import { patientService } from '../services/patientService';
 import './PatientsPage.css';
 
 export default function PatientsPage() {
+  const navigate = useNavigate();
   const [patients, setPatients] = useState([]);
   const [query, setQuery] = useState('');
   const [showModal, setShowModal] = useState(false);
@@ -88,6 +90,8 @@ export default function PatientsPage() {
       <div className="patients-table">
         <div className="table-header">
           <span>Name</span>
+          <span>Status</span>
+          <span>Room / Bed</span>
           <span>Email</span>
           <span>Date of Birth</span>
           <span>Address</span>
@@ -99,12 +103,16 @@ export default function PatientsPage() {
           <div className="empty-state">No patients found</div>
         ) : (
           patients.map((p) => (
-            <div key={p.id} className="table-row">
+            <div key={p.id} className="table-row clickable" onClick={() => navigate(`/patients/${p.id}`)}>
               <span className="text-heading">{p.name}</span>
+              <span>
+                <span className={`status-badge status-${(p.status || 'active').toLowerCase()}`}>{p.status || 'ACTIVE'}</span>
+              </span>
+              <span>{p.roomNumber ? `${p.roomNumber} - ${p.bedNumber || 'A'}` : '—'}</span>
               <span>{p.email}</span>
               <span>{p.dateOfBirth}</span>
               <span className="text-truncate">{p.address}</span>
-              <span className="row-actions">
+              <span className="row-actions" onClick={e => e.stopPropagation()}>
                 <button className="icon-btn" onClick={() => openEdit(p)} title="Edit">
                   <Edit size={14} />
                 </button>

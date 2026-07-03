@@ -83,4 +83,64 @@ public class PatientController {
     patientService.deletePatient(id);
     return ResponseEntity.noContent().build();
   }
+
+  @PutMapping("/{id}/admit")
+  @Operation(summary = "Admit a patient — assign room and bed")
+  public ResponseEntity<PatientResponseDTO> admitPatient(
+      @PathVariable UUID id,
+      @RequestParam String roomNumber,
+      @RequestParam String bedNumber) {
+    return ResponseEntity.ok(patientService.admitPatient(id, roomNumber, bedNumber));
+  }
+
+  @PutMapping("/{id}/discharge")
+  @Operation(summary = "Discharge a patient — clear room assignment")
+  public ResponseEntity<PatientResponseDTO> dischargePatient(@PathVariable UUID id) {
+    return ResponseEntity.ok(patientService.dischargePatient(id));
+  }
+
+  @GetMapping("/status/{status}")
+  @Operation(summary = "Get patients by status (ACTIVE, ADMITTED, DISCHARGED)")
+  public ResponseEntity<List<PatientResponseDTO>> getPatientsByStatus(
+      @PathVariable String status) {
+    return ResponseEntity.ok(patientService.getPatientsByStatus(status));
+  }
+
+  @GetMapping("/count")
+  @Operation(summary = "Get count of patients by status")
+  public ResponseEntity<java.util.Map<String, Long>> getPatientCounts() {
+    java.util.Map<String, Long> counts = new java.util.HashMap<>();
+    counts.put("total", (long) patientService.getPatients().size());
+    counts.put("admitted", patientService.countByStatus("ADMITTED"));
+    counts.put("active", patientService.countByStatus("ACTIVE"));
+    counts.put("discharged", patientService.countByStatus("DISCHARGED"));
+    return ResponseEntity.ok(counts);
+  }
+
+  @GetMapping("/{id}/billing")
+  @Operation(summary = "Get full billing details for a patient")
+  public ResponseEntity<java.util.Map<String, Object>> getBillingDetails(@PathVariable UUID id) {
+    return ResponseEntity.ok(patientService.getBillingDetails(id));
+  }
+
+  @PostMapping("/{id}/invoices")
+  @Operation(summary = "Add a charge/invoice to a patient's billing account")
+  public ResponseEntity<java.util.Map<String, Object>> addInvoice(
+      @PathVariable UUID id,
+      @RequestParam String description,
+      @RequestParam double amount) {
+    return ResponseEntity.ok(patientService.addInvoice(id, description, amount));
+  }
+
+  @PutMapping("/invoices/{invoiceId}/pay")
+  @Operation(summary = "Record a payment for an invoice")
+  public ResponseEntity<java.util.Map<String, Object>> recordPayment(@PathVariable String invoiceId) {
+    return ResponseEntity.ok(patientService.recordPayment(invoiceId));
+  }
+
+  @GetMapping("/billing/summary")
+  @Operation(summary = "Get outstanding billing summary across all accounts")
+  public ResponseEntity<java.util.Map<String, Double>> getOutstandingSummary() {
+    return ResponseEntity.ok(java.util.Map.of("totalOutstanding", patientService.getOutstandingSummary()));
+  }
 }

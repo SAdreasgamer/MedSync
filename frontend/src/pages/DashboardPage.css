@@ -2,7 +2,7 @@
 
 .stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 16px;
   margin-bottom: 28px;
 }
@@ -47,7 +47,7 @@
 
 .dashboard-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1.2fr 1fr;
   gap: 20px;
 }
 
@@ -57,6 +57,20 @@
   border-radius: var(--radius-md);
   padding: 20px;
 }
+
+.dashboard-section.full-width {
+  grid-column: 1 / -1;
+}
+
+.chart-section h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.chart-container {
+  margin-top: 10px;
+}
+
 
 .section-header {
   display: flex;
@@ -97,6 +111,18 @@
 
 .simple-table-row {
   border-bottom: 1px solid var(--border-color);
+}
+
+.simple-table-row.clickable {
+  cursor: pointer;
+  padding: 10px 8px;
+  margin: 0 -8px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.simple-table-row.clickable:hover {
+  background: var(--bg-hover);
 }
 
 .simple-table-row:last-child { border-bottom: none; }

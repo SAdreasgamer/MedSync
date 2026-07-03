@@ -145,7 +145,8 @@
   border-color: var(--color-danger);
 }
 
-.message-content.thinking {
+.message-content.thinking,
+.thinking-text {
   color: var(--text-muted);
   font-style: italic;
 }

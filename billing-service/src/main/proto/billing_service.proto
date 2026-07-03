@@ -7,7 +7,13 @@ option java_outer_classname = "BillingServiceOuterClass";
 service BillingService {
   rpc CreateBillingAccount (BillingRequest) returns (BillingResponse);
   rpc GetBillingAccount (GetBillingAccountRequest) returns (BillingResponse);
+  rpc AddInvoice (AddInvoiceRequest) returns (InvoiceResponse);
+  rpc RecordPayment (RecordPaymentRequest) returns (InvoiceResponse);
+  rpc GetBillingDetails (GetBillingAccountRequest) returns (BillingDetailsResponse);
+  rpc GetOutstandingSummary (EmptyRequest) returns (OutstandingSummaryResponse);
 }
+
+message EmptyRequest {}
 
 message BillingRequest {
   string patientId = 1;
@@ -22,4 +28,38 @@ message BillingResponse {
 
 message GetBillingAccountRequest {
   string patientId = 1;
+}
+
+message AddInvoiceRequest {
+  string patientId = 1;
+  string description = 2;
+  double amount = 3;
+}
+
+message RecordPaymentRequest {
+  string invoiceId = 1;
+}
+
+message InvoiceResponse {
+  string invoiceId = 1;
+  string description = 2;
+  double amount = 3;
+  string status = 4;
+  string invoiceDate = 5;
+}
+
+message BillingDetailsResponse {
+  string accountId = 1;
+  string patientId = 2;
+  string status = 3;
+  string insuranceProvider = 4;
+  string insurancePolicyNumber = 5;
+  double totalBilled = 6;
+  double totalPaid = 7;
+  double outstandingBalance = 8;
+  repeated InvoiceResponse invoices = 9;
+}
+
+message OutstandingSummaryResponse {
+  double totalOutstanding = 1;
 }

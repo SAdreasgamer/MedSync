@@ -58,3 +58,12 @@ spring:
           filters:
             - StripPrefix=1
             - JwtValidation
+
+        # Route for /api/appointments/** to appointment-service
+        - id: appointment-service-route
+          uri: http://appointment-service:4006
+          predicates:
+            - Path=/api/appointments/**
+          filters:
+            - StripPrefix=1
+            - JwtValidation

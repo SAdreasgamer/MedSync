@@ -48,10 +48,14 @@
 .table-header,
 .table-row {
   display: grid;
-  grid-template-columns: 1.5fr 2fr 1fr 2fr 80px;
+  grid-template-columns: 1.5fr 110px 110px 2fr 1fr 2fr 80px;
   padding: 12px 16px;
   font-size: 0.85rem;
   align-items: center;
+}
+
+.clickable {
+  cursor: pointer;
 }
 
 .table-header {

@@ -7,15 +7,13 @@ export default function AgentPage() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [streamingTokens, setStreamingTokens] = useState('');
-  const [activeTools, setActiveTools] = useState([]);
   const messagesEndRef = useRef(null);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  useEffect(scrollToBottom, [messages, streamingTokens]);
+  useEffect(scrollToBottom, [messages]);
 
   const sendMessage = async (e) => {
     e.preventDefault();
@@ -25,52 +23,93 @@ export default function AgentPage() {
     setMessages((prev) => [...prev, userMsg]);
     setInput('');
     setLoading(true);
-    setStreamingTokens('');
-    setActiveTools([]);
+
+    let hasFinished = false;
+
+    const triggerFallback = () => {
+      if (hasFinished) return;
+      hasFinished = true;
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (
+          last &&
+          last.role === 'assistant' &&
+          !last.content &&
+          (!last.toolCalls || last.toolCalls.length === 0)
+        ) {
+          return prev.slice(0, -1);
+        }
+        return prev;
+      });
+      fallbackREST(userMsg.content);
+    };
 
     try {
+      // Append a placeholder assistant message that will stream content in real-time
+      setMessages((prev) => [...prev, { role: 'assistant', content: '', toolCalls: [] }]);
+
       const ws = agentService.connectStream(
+        userMsg.content,
         (data) => {
           if (data.type === 'token') {
-            setStreamingTokens((prev) => prev + data.content);
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                return [...prev.slice(0, -1), { ...last, content: last.content + data.content }];
+              }
+              return prev;
+            });
           } else if (data.type === 'tool_start') {
-            setActiveTools((prev) => [...prev, { name: data.name, input: data.input, status: 'running' }]);
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                const toolCalls = last.toolCalls || [];
+                return [
+                  ...prev.slice(0, -1),
+                  { ...last, toolCalls: [...toolCalls, { name: data.name, input: data.input, status: 'running' }] },
+                ];
+              }
+              return prev;
+            });
           } else if (data.type === 'tool_end') {
-            setActiveTools((prev) =>
-              prev.map((t) =>
-                t.name === data.name && t.status === 'running'
-                  ? { ...t, status: 'done', output: data.output }
-                  : t
-              )
-            );
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                const toolCalls = (last.toolCalls || []).map((t) =>
+                  t.name === data.name && t.status === 'running'
+                    ? { ...t, status: 'done', output: data.output }
+                    : t
+                );
+                return [...prev.slice(0, -1), { ...last, toolCalls }];
+              }
+              return prev;
+            });
           } else if (data.type === 'done') {
-            setMessages((prev) => [
-              ...prev,
-              {
-                role: 'assistant',
-                content: streamingTokens || '',
-                toolCalls: activeTools,
-              },
-            ]);
+            hasFinished = true;
             setLoading(false);
             ws.close();
           } else if (data.type === 'error') {
-            setMessages((prev) => [...prev, { role: 'assistant', content: `Error: ${data.content}`, error: true }]);
+            hasFinished = true;
+            setMessages((prev) => {
+              const last = prev[prev.length - 1];
+              if (last && last.role === 'assistant') {
+                return [...prev.slice(0, -1), { ...last, content: `Error: ${data.content}`, error: true }];
+              }
+              return prev;
+            });
             setLoading(false);
             ws.close();
           }
         },
         () => {
-          // WebSocket error fallback — use REST
-          fallbackREST(userMsg.content);
+          triggerFallback();
+        },
+        () => {
+          triggerFallback();
         }
       );
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ message: userMsg.content }));
-      };
     } catch {
-      fallbackREST(userMsg.content);
+      triggerFallback();
     }
   };
 
@@ -93,24 +132,6 @@ export default function AgentPage() {
     }
     setLoading(false);
   };
-
-  // We need to finalize streaming messages with a useEffect
-  useEffect(() => {
-    if (!loading && streamingTokens) {
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === 'assistant' && !last.content) {
-          return [...prev.slice(0, -1), { ...last, content: streamingTokens }];
-        }
-        if (last?.role !== 'assistant') {
-          return [...prev, { role: 'assistant', content: streamingTokens, toolCalls: activeTools }];
-        }
-        return prev;
-      });
-      setStreamingTokens('');
-      setActiveTools([]);
-    }
-  }, [loading]);
 
   const suggestions = [
     'Show me all patients',
@@ -154,7 +175,11 @@ export default function AgentPage() {
                           <Wrench size={13} />
                           <span className="tool-call-name">{tc.name}</span>
                           <span className={`tool-status ${tc.status || 'done'}`}>
-                            {tc.status === 'running' ? 'Running...' : '✓'}
+                            {tc.status === 'running' ? (
+                              <Loader2 size={12} className="spin" style={{ color: 'var(--color-warning)' }} />
+                            ) : (
+                              '✓'
+                            )}
                           </span>
                         </div>
                       </div>
@@ -163,40 +188,20 @@ export default function AgentPage() {
                 )}
 
                 <div className={`message-content ${msg.error ? 'error' : ''}`}>
-                  {msg.content}
+                  {msg.content ? (
+                    <>
+                      {msg.content}
+                      {loading && i === messages.length - 1 && <span className="cursor-blink" />}
+                    </>
+                  ) : (
+                    loading && i === messages.length - 1 && (
+                      <span className="thinking-text">Thinking...</span>
+                    )
+                  )}
                 </div>
               </div>
             </div>
           ))}
-
-          {loading && (
-            <div className="message assistant">
-              <div className="message-avatar"><Bot size={16} /></div>
-              <div className="message-body">
-                <span className="message-role">Assistant</span>
-                {activeTools.length > 0 && (
-                  <div className="tool-calls">
-                    {activeTools.map((tc, j) => (
-                      <div key={j} className="tool-call-card">
-                        <div className="tool-call-header">
-                          <Wrench size={13} />
-                          <span className="tool-call-name">{tc.name}</span>
-                          <span className={`tool-status ${tc.status}`}>
-                            {tc.status === 'running' ? <Loader2 size={12} className="spin" /> : '✓'}
-                          </span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {streamingTokens ? (
-                  <div className="message-content">{streamingTokens}<span className="cursor-blink" /></div>
-                ) : (
-                  <div className="message-content thinking">Thinking...</div>
-                )}
-              </div>
-            </div>
-          )}
 
           <div ref={messagesEndRef} />
         </div>

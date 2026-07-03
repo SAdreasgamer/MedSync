@@ -5,6 +5,7 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.UUID;
 
@@ -26,51 +27,52 @@ public class BillingAccount {
 
   private LocalDate createdDate;
 
-  public UUID getId() {
-    return id;
-  }
+  // New fields
+  private String insuranceProvider;
 
-  public void setId(UUID id) {
-    this.id = id;
-  }
+  private String insurancePolicyNumber;
 
-  public String getPatientId() {
-    return patientId;
-  }
+  @Column(precision = 12, scale = 2)
+  private BigDecimal totalBilled = BigDecimal.ZERO;
 
-  public void setPatientId(String patientId) {
-    this.patientId = patientId;
-  }
+  @Column(precision = 12, scale = 2)
+  private BigDecimal totalPaid = BigDecimal.ZERO;
 
-  public String getName() {
-    return name;
-  }
+  @Column(precision = 12, scale = 2)
+  private BigDecimal outstandingBalance = BigDecimal.ZERO;
 
-  public void setName(String name) {
-    this.name = name;
-  }
+  // --- Getters & Setters ---
 
-  public String getEmail() {
-    return email;
-  }
+  public UUID getId() { return id; }
+  public void setId(UUID id) { this.id = id; }
 
-  public void setEmail(String email) {
-    this.email = email;
-  }
+  public String getPatientId() { return patientId; }
+  public void setPatientId(String patientId) { this.patientId = patientId; }
 
-  public String getStatus() {
-    return status;
-  }
+  public String getName() { return name; }
+  public void setName(String name) { this.name = name; }
 
-  public void setStatus(String status) {
-    this.status = status;
-  }
+  public String getEmail() { return email; }
+  public void setEmail(String email) { this.email = email; }
 
-  public LocalDate getCreatedDate() {
-    return createdDate;
-  }
+  public String getStatus() { return status; }
+  public void setStatus(String status) { this.status = status; }
 
-  public void setCreatedDate(LocalDate createdDate) {
-    this.createdDate = createdDate;
-  }
+  public LocalDate getCreatedDate() { return createdDate; }
+  public void setCreatedDate(LocalDate createdDate) { this.createdDate = createdDate; }
+
+  public String getInsuranceProvider() { return insuranceProvider; }
+  public void setInsuranceProvider(String insuranceProvider) { this.insuranceProvider = insuranceProvider; }
+
+  public String getInsurancePolicyNumber() { return insurancePolicyNumber; }
+  public void setInsurancePolicyNumber(String insurancePolicyNumber) { this.insurancePolicyNumber = insurancePolicyNumber; }
+
+  public BigDecimal getTotalBilled() { return totalBilled; }
+  public void setTotalBilled(BigDecimal totalBilled) { this.totalBilled = totalBilled; }
+
+  public BigDecimal getTotalPaid() { return totalPaid; }
+  public void setTotalPaid(BigDecimal totalPaid) { this.totalPaid = totalPaid; }
+
+  public BigDecimal getOutstandingBalance() { return outstandingBalance; }
+  public void setOutstandingBalance(BigDecimal outstandingBalance) { this.outstandingBalance = outstandingBalance; }
 }

@@ -51,7 +51,9 @@ def search_patients(query: str) -> str:
 
 @tool
 def create_patient(
-    name: str, email: str, date_of_birth: str, address: str
+    name: str, email: str, date_of_birth: str, address: str,
+    phone: str = "", gender: str = "", blood_group: str = "",
+    emergency_contact_name: str = "", emergency_contact_phone: str = "",
 ) -> str:
     """Register a new patient in the system.
 
@@ -60,6 +62,11 @@ def create_patient(
         email: Email address (must be unique).
         date_of_birth: Date of birth in YYYY-MM-DD format.
         address: Home address of the patient.
+        phone: Phone number (optional).
+        gender: Gender — MALE, FEMALE, or OTHER (optional).
+        blood_group: Blood group e.g. O+, AB- (optional).
+        emergency_contact_name: Emergency contact name (optional).
+        emergency_contact_phone: Emergency contact phone (optional).
     """
     payload = {
         "name": name,
@@ -68,6 +75,12 @@ def create_patient(
         "address": address,
         "registeredDate": str(date.today()),
     }
+    if phone: payload["phone"] = phone
+    if gender: payload["gender"] = gender
+    if blood_group: payload["bloodGroup"] = blood_group
+    if emergency_contact_name: payload["emergencyContactName"] = emergency_contact_name
+    if emergency_contact_phone: payload["emergencyContactPhone"] = emergency_contact_phone
+
     response = httpx.post(
         f"{BASE_URL}/patients", json=payload, timeout=10.0
     )
@@ -119,3 +132,37 @@ def delete_patient(patient_id: str) -> str:
     if response.status_code == 404:
         return f"Patient '{patient_id}' was not found."
     return f"Error deleting patient: HTTP {response.status_code}"
+
+
+@tool
+def admit_patient(patient_id: str, room_number: str, bed_number: str) -> str:
+    """Admit a patient to the hospital — assigns room and bed.
+
+    Args:
+        patient_id: UUID of the patient.
+        room_number: Room number (e.g. ICU-201, GEN-305, PED-101).
+        bed_number: Bed identifier (e.g. A, B, C).
+    """
+    response = httpx.put(
+        f"{BASE_URL}/patients/{patient_id}/admit",
+        params={"roomNumber": room_number, "bedNumber": bed_number},
+        timeout=10.0,
+    )
+    if response.status_code == 200:
+        return json.dumps(response.json(), indent=2)
+    return f"Error admitting patient: {response.text}"
+
+
+@tool
+def discharge_patient(patient_id: str) -> str:
+    """Discharge a patient from the hospital — clears room assignment.
+
+    Args:
+        patient_id: UUID of the patient.
+    """
+    response = httpx.put(
+        f"{BASE_URL}/patients/{patient_id}/discharge", timeout=10.0
+    )
+    if response.status_code == 200:
+        return json.dumps(response.json(), indent=2)
+    return f"Error discharging patient: {response.text}"
