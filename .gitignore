@@ -73,7 +73,6 @@ Thumbs.db
 
 # Docker
 /docker/
-/docker-compose.yml
 /docker-compose.override.yml
 
 # Kubernetes

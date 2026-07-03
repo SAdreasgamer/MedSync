@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -36,6 +37,21 @@ public class PatientController {
   public ResponseEntity<List<PatientResponseDTO>> getPatients() {
     List<PatientResponseDTO> patients = patientService.getPatients();
     return ResponseEntity.ok().body(patients);
+  }
+
+  @GetMapping("/search")
+  @Operation(summary = "Search Patients by name or email")
+  public ResponseEntity<List<PatientResponseDTO>> searchPatients(
+      @RequestParam String q) {
+    List<PatientResponseDTO> patients = patientService.searchPatients(q);
+    return ResponseEntity.ok().body(patients);
+  }
+
+  @GetMapping("/{id}")
+  @Operation(summary = "Get a Patient by ID")
+  public ResponseEntity<PatientResponseDTO> getPatient(@PathVariable UUID id) {
+    PatientResponseDTO patient = patientService.getPatient(id);
+    return ResponseEntity.ok().body(patient);
   }
 
   @PostMapping

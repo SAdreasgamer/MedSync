@@ -78,4 +78,16 @@ public class PatientService {
   public void deletePatient(UUID id) {
     patientRepository.deleteById(id);
   }
+
+  public PatientResponseDTO getPatient(UUID id) {
+    Patient patient = patientRepository.findById(id).orElseThrow(
+        () -> new PatientNotFoundException("Patient not found with ID: " + id));
+    return PatientMapper.toDTO(patient);
+  }
+
+  public List<PatientResponseDTO> searchPatients(String query) {
+    List<Patient> patients = patientRepository
+        .findByNameContainingIgnoreCaseOrEmailContainingIgnoreCase(query, query);
+    return patients.stream().map(PatientMapper::toDTO).toList();
+  }
 }

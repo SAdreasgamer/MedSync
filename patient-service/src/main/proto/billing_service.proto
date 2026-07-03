@@ -6,6 +6,7 @@ option java_outer_classname = "BillingServiceOuterClass";
 
 service BillingService {
   rpc CreateBillingAccount (BillingRequest) returns (BillingResponse);
+  rpc GetBillingAccount (GetBillingAccountRequest) returns (BillingResponse);
 }
 
 message BillingRequest {
@@ -17,4 +18,8 @@ message BillingRequest {
 message BillingResponse {
   string accountId = 1;
   string status = 2;
+}
+
+message GetBillingAccountRequest {
+  string patientId = 1;
 }

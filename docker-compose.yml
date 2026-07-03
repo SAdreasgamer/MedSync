@@ -1,0 +1,173 @@
+services:
+  # ============================================================
+  # INFRASTRUCTURE
+  # ============================================================
+  postgres:
+    image: postgres:17
+    container_name: pm-postgres
+    environment:
+      POSTGRES_USER: admin_user
+      POSTGRES_PASSWORD: password
+    volumes:
+      - ./deploy/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin_user"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:3.8.0
+    container_name: pm-kafka
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
+      KAFKA_HEAP_OPTS: "-Xmx200m -Xms200m"
+    ports:
+      - "9092:9092"
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  # ============================================================
+  # JAVA MICROSERVICES
+  # ============================================================
+  auth-service:
+    build: ./auth-service
+    container_name: pm-auth-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/auth_db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      JWT_SECRET: Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM=
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+    ports:
+      - "4005:4005"
+    restart: unless-stopped
+
+  billing-service:
+    build: ./billing-service
+    container_name: pm-billing-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/billing_db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+    ports:
+      - "4001:4001"
+      - "9001:9001"
+    restart: unless-stopped
+
+  patient-service:
+    build: ./patient-service
+    container_name: pm-patient-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+      billing-service:
+        condition: service_started
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/patient_db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_SQL_INIT_MODE: always
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      BILLING_SERVICE_ADDRESS: billing-service
+      BILLING_SERVICE_GRPC_PORT: 9001
+      JAVA_TOOL_OPTIONS: "-Xmx120m -XX:+UseSerialGC"
+    ports:
+      - "4000:4000"
+    restart: unless-stopped
+
+  analytics-service:
+    build: ./analytics-service
+    container_name: pm-analytics-service
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/analytics_db
+      SPRING_DATASOURCE_USERNAME: admin_user
+      SPRING_DATASOURCE_PASSWORD: password
+      SPRING_JPA_HIBERNATE_DDL_AUTO: update
+      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+    ports:
+      - "4002:4002"
+    restart: unless-stopped
+
+  # ============================================================
+  # PYTHON AI AGENT SERVICE
+  # ============================================================
+  ai-agent-service:
+    build: ./ai-agent-service
+    container_name: pm-ai-agent
+    depends_on:
+      patient-service:
+        condition: service_started
+      billing-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
+    environment:
+      PATIENT_SERVICE_URL: http://patient-service:4000
+      BILLING_SERVICE_HOST: billing-service
+      BILLING_SERVICE_GRPC_PORT: 9001
+      ANALYTICS_SERVICE_URL: http://analytics-service:4002
+      GEMINI_API_KEY: ${GEMINI_API_KEY}
+    ports:
+      - "4003:4003"
+    restart: unless-stopped
+
+  # ============================================================
+  # API GATEWAY
+  # ============================================================
+  api-gateway:
+    build: ./api-gateway
+    container_name: pm-api-gateway
+    depends_on:
+      - auth-service
+      - patient-service
+      - billing-service
+      - analytics-service
+      - ai-agent-service
+    environment:
+      SPRING_PROFILES_ACTIVE: docker
+      AUTH_SERVICE_URL: http://auth-service:4005
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+    ports:
+      - "4004:4004"
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

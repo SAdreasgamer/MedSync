@@ -4,6 +4,12 @@ server:
 spring:
   cloud:
     gateway:
+      globalcors:
+        cors-configurations:
+          '[/**]':
+            allowedOrigins: "*"
+            allowedMethods: "*"
+            allowedHeaders: "*"
       routes:
         - id: auth-service-route
           uri: http://auth-service:4005
@@ -35,3 +41,20 @@ spring:
             - Path=/api-docs/auth
           filters:
             - RewritePath=/api-docs/auth,/v3/api-docs
+
+        # Route for /agent/** to ai-agent-service
+        - id: ai-agent-route
+          uri: http://ai-agent-service:4003
+          predicates:
+            - Path=/agent/**
+          filters:
+            - JwtValidation
+
+        # Route for /api/analytics/** to analytics-service
+        - id: analytics-route
+          uri: http://analytics-service:4002
+          predicates:
+            - Path=/api/analytics/**
+          filters:
+            - StripPrefix=1
+            - JwtValidation
