@@ -8,6 +8,14 @@ services:
     environment:
       POSTGRES_USER: admin_user
       POSTGRES_PASSWORD: password
+      # Tune Postgres to use less RAM on a small server
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8"
+    command: >
+      postgres
+      -c shared_buffers=64MB
+      -c work_mem=4MB
+      -c maintenance_work_mem=32MB
+      -c max_connections=50
     volumes:
       - ./deploy/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
       - postgres_data:/var/lib/postgresql/data
@@ -61,7 +69,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_SQL_INIT_MODE: always
       JWT_SECRET: Y2hhVEc3aHJnb0hYTzMyZ2ZqVkpiZ1RkZG93YWxrUkM=
-      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:CompressedClassSpaceSize=32m"
     ports:
       - "4005:4005"
     healthcheck:
@@ -85,7 +93,7 @@ services:
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_SQL_INIT_MODE: always
       SPRING_JPA_DEFER_DATASOURCE_INITIALIZATION: "true"
-      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:CompressedClassSpaceSize=32m"
     ports:
       - "4001:4001"
       - "9001:9001"
@@ -117,7 +125,7 @@ services:
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       BILLING_SERVICE_ADDRESS: billing-service
       BILLING_SERVICE_GRPC_PORT: 9001
-      JAVA_TOOL_OPTIONS: "-Xmx120m -XX:+UseSerialGC"
+      JAVA_TOOL_OPTIONS: "-Xmx120m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:CompressedClassSpaceSize=32m"
     ports:
       - "4000:4000"
     healthcheck:
@@ -144,7 +152,7 @@ services:
       SPRING_SQL_INIT_MODE: always
       SPRING_JPA_DEFER_DATASOURCE_INITIALIZATION: "true"
       SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:CompressedClassSpaceSize=32m"
     ports:
       - "4002:4002"
     healthcheck:
@@ -167,7 +175,7 @@ services:
       SPRING_DATASOURCE_PASSWORD: password
       SPRING_JPA_HIBERNATE_DDL_AUTO: update
       SPRING_SQL_INIT_MODE: always
-      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:CompressedClassSpaceSize=32m"
     ports:
       - "4006:4006"
     healthcheck:
@@ -228,7 +236,7 @@ services:
     environment:
       SPRING_PROFILES_ACTIVE: docker
       AUTH_SERVICE_URL: http://auth-service:4005
-      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC"
+      JAVA_TOOL_OPTIONS: "-Xmx100m -XX:+UseSerialGC -XX:MaxMetaspaceSize=96m -XX:CompressedClassSpaceSize=32m"
     ports:
       - "4004:4004"
     healthcheck:
