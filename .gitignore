@@ -83,3 +83,10 @@ Thumbs.db
 
 # AWS credentials
 .aws/
+
+# Production SSL certificates
+deploy/ssl/
+*.pem
+
+# Production environment
+.env.prod

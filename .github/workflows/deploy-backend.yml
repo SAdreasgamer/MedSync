@@ -1,0 +1,123 @@
+# ============================================================
+# MedSync — Backend Deployment Pipeline
+# ============================================================
+# Deploys all backend services to EC2 via SSH.
+# Triggered on push to main when backend files change.
+#
+# Strategy: SSH → git pull → docker compose build → restart
+# Rollback: If health check fails, reverts to previous commit
+# ============================================================
+
+name: Deploy — Backend to EC2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "auth-service/**"
+      - "patient-service/**"
+      - "billing-service/**"
+      - "analytics-service/**"
+      - "appointment-service/**"
+      - "ai-agent-service/**"
+      - "api-gateway/**"
+      - "swagger-docs/**"
+      - "docker-compose*.yml"
+      - "deploy/**"
+      - "Makefile"
+
+# Only one deploy at a time
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          command_timeout: 15m
+          script: |
+            set -e
+
+            APP_DIR="/opt/medsync"
+            cd ${APP_DIR}
+
+            echo "=== Pulling latest code ==="
+            git pull origin main
+
+            echo "=== Updating .env ==="
+            cat > .env << 'ENVEOF'
+            GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+            OPENROUTER_API_KEY=${{ secrets.OPENROUTER_API_KEY }}
+            OPENROUTER_MODEL=${{ secrets.OPENROUTER_MODEL }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            ENVEOF
+
+            echo "=== Building containers ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml build --parallel
+
+            echo "=== Starting services ==="
+            docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
+
+            echo "=== Waiting for services to start (60s) ==="
+            sleep 60
+
+            echo "=== Health Check ==="
+            HEALTHY=true
+
+            # Check each service
+            for port_svc in "4005:auth-service" "4000:patient-service" "4001:billing-service" "4002:analytics-service" "4006:appointment-service" "4004:api-gateway"; do
+              PORT=$(echo $port_svc | cut -d: -f1)
+              SVC=$(echo $port_svc | cut -d: -f2)
+              if curl -sf http://localhost:${PORT}/actuator/health > /dev/null 2>&1; then
+                echo "  ✓ ${SVC}"
+              else
+                echo "  ✗ ${SVC} — UNHEALTHY"
+                HEALTHY=false
+              fi
+            done
+
+            # Check Python service
+            if curl -sf http://localhost:4003/health > /dev/null 2>&1; then
+              echo "  ✓ ai-agent-service"
+            else
+              echo "  ✗ ai-agent-service — UNHEALTHY"
+              HEALTHY=false
+            fi
+
+            if [ "$HEALTHY" = false ]; then
+              echo ""
+              echo "=== DEPLOY FAILED — Rolling back ==="
+              git checkout HEAD~1
+              docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+              echo "Rolled back to previous commit"
+              exit 1
+            fi
+
+            echo ""
+            echo "=== Deploy successful ==="
+            docker compose ps
+            echo ""
+            docker stats --no-stream
+
+      - name: Post deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Backend deployed successfully to ${{ secrets.EC2_HOST }}"
+          else
+            echo "❌ Backend deployment failed"
+          fi
