@@ -4,7 +4,8 @@
 
 **A production-grade polyglot microservices system with AI-powered agentic orchestration**
 
-[![Java](https://img.shields.io/badge/Java-17-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
+[![Live Demo](https://img.shields.io/badge/Live_Demo-medsync.space-00C853?style=for-the-badge&logo=googlechrome&logoColor=white)](https://medsync.space)
+[![Java](https://img.shields.io/badge/Java-21-ED8B00?style=for-the-badge&logo=openjdk&logoColor=white)](https://openjdk.org/)
 [![Spring Boot](https://img.shields.io/badge/Spring_Boot-3.x-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)](https://spring.io/projects/spring-boot)
 [![Python](https://img.shields.io/badge/Python-3.12-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev)
@@ -12,12 +13,14 @@
 [![Kafka](https://img.shields.io/badge/Apache_Kafka-3.8-231F20?style=for-the-badge&logo=apachekafka&logoColor=white)](https://kafka.apache.org/)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://www.postgresql.org/)
 [![LangGraph](https://img.shields.io/badge/LangGraph-ReAct_Agent-1C3C3C?style=for-the-badge&logo=langchain&logoColor=white)](https://langchain-ai.github.io/langgraph/)
+[![AWS](https://img.shields.io/badge/AWS-EC2_|_S3_|_CloudFront-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)](https://aws.amazon.com/)
+[![CI/CD](https://img.shields.io/badge/CI/CD-GitHub_Actions-2088FF?style=for-the-badge&logo=githubactions&logoColor=white)](https://github.com/features/actions)
 
 ---
 
 *MedSync is a full-stack healthcare management platform built using a distributed microservices architecture. It features real-time AI-powered natural language operations, event-driven analytics pipelines, gRPC inter-service communication, and a modern React dashboard — all orchestrated with Docker Compose.*
 
-[Features](#-features) · [Architecture](#-architecture) · [Tech Stack](#-tech-stack) · [Quick Start](#-quick-start) · [API Documentation](#-api-documentation) · [Project Structure](#-project-structure) · [Screenshots](#-screenshots)
+[Features](#-features) · [Architecture](#-architecture) · [Tech Stack](#-tech-stack) · [Deployment](#-deployment--infrastructure) · [Quick Start](#-quick-start) · [API Documentation](#-api-documentation) · [Project Structure](#-project-structure)
 
 </div>
 
@@ -112,7 +115,7 @@
 ### Backend
 | Technology | Usage |
 |---|---|
-| **Java 17 + Spring Boot 3** | Auth, Patient, Billing, Appointment, Analytics, and API Gateway services |
+| **Java 21 + Spring Boot 3** | Auth, Patient, Billing, Appointment, Analytics, and API Gateway services |
 | **Spring Cloud Gateway** | Centralized API routing with JWT filter |
 | **Spring Security + JWT** | Stateless authentication and authorization |
 | **Spring Data JPA + Hibernate** | ORM and database access layer |
@@ -140,11 +143,18 @@
 | **Lucide React** | Modern icon system |
 | **Axios** | HTTP client with JWT interceptor |
 
-### DevOps
+### DevOps & Cloud
 | Technology | Usage |
 |---|---|
-| **Docker + Docker Compose** | Containerized orchestration of 8+ services |
+| **Docker + Docker Compose** | Containerized orchestration of 11 services (dev + prod configs) |
 | **Multi-stage Dockerfiles** | Optimized container images for Java and Python services |
+| **Nginx** | Reverse proxy with TLS 1.3 termination, rate limiting, and CORS |
+| **AWS EC2** | Backend hosting (t3.small, Ubuntu, Elastic IP) |
+| **AWS S3 + CloudFront** | Frontend static hosting with global CDN distribution |
+| **Let's Encrypt (Certbot)** | Free auto-renewing SSL certificates for the backend |
+| **AWS ACM** | Managed SSL certificate for CloudFront custom domain |
+| **GitHub Actions** | CI pipeline (build + test) and CD pipelines (backend SSH deploy + frontend S3 deploy) |
+| **Makefile** | Unified command interface for dev, prod, deploy, and maintenance tasks |
 
 ---
 
@@ -213,8 +223,8 @@ npm run dev
 ### Default Login Credentials
 
 ```
-Username: admin
-Password: password
+Email:    testuser@test.com
+Password: password123
 ```
 
 ---
@@ -315,9 +325,20 @@ MedSync/
 │   └── proto/                   # Protobuf definitions
 │
 ├── deploy/
-│   └── init-db.sql              # PostgreSQL multi-database initialization
-├── docker-compose.yml           # Full stack orchestration (8+ services)
-└── .env                         # Environment variables (API keys)
+│   ├── init-db.sql              # PostgreSQL multi-database initialization
+│   ├── nginx.conf               # Production Nginx reverse proxy config
+│   ├── setup-ec2.sh             # One-command EC2 bootstrap script
+│   └── ssl/                     # Let's Encrypt TLS certificates
+│
+├── .github/workflows/
+│   ├── ci.yml                   # CI — build & test all services on PR
+│   ├── deploy-backend.yml       # CD — SSH deploy to EC2 on push to main
+│   └── deploy-frontend.yml      # CD — S3 deploy + CloudFront invalidation
+│
+├── docker-compose.yml           # Base stack orchestration (11 services)
+├── docker-compose.prod.yml      # Production overrides (Nginx, memory limits, no exposed ports)
+├── Makefile                     # Unified command interface (make dev, make prod, etc.)
+└── .env                         # Environment variables (API keys, gitignored)
 ```
 
 ---
@@ -421,14 +442,81 @@ docker logs pm-kafka --tail 20              # Kafka broker
 
 ---
 
+## 🚀 Deployment & Infrastructure
+
+MedSync is fully deployed and accessible at **[medsync.space](https://medsync.space)**.
+
+### Production Architecture
+
+```
+                    ┌─────────────────────────────┐
+                    │      medsync.space           │
+                    │   (AWS CloudFront CDN)       │
+                    │   + ACM SSL Certificate      │
+                    └─────────────┬───────────────┘
+                                  │
+                    ┌─────────────▼───────────────┐
+                    │     AWS S3 Bucket            │
+                    │   (React Static Assets)      │
+                    └─────────────────────────────┘
+
+                    ┌─────────────────────────────┐
+                    │   api.medsync.space          │
+                    │   (Elastic IP: 98.83.102.247)│
+                    └─────────────┬───────────────┘
+                                  │
+                    ┌─────────────▼───────────────┐
+                    │  Nginx Reverse Proxy         │
+                    │  TLS 1.3 (Let's Encrypt)     │
+                    │  Rate Limiting · CORS        │
+                    └─────────────┬───────────────┘
+                                  │
+                    ┌─────────────▼───────────────┐
+                    │  Docker Compose (11 containers)│
+                    │  API Gateway → Microservices │
+                    │  PostgreSQL · Kafka           │
+                    └─────────────────────────────┘
+```
+
+### CI/CD Pipelines (GitHub Actions)
+
+| Pipeline | Trigger | What It Does |
+|---|---|---|
+| **CI** (`ci.yml`) | Pull request to `main` | Builds & tests all 6 Java services, Python agent, and frontend |
+| **Backend CD** (`deploy-backend.yml`) | Push to `main` | SSHs into EC2, pulls code, rebuilds containers, runs health checks with auto-rollback |
+| **Frontend CD** (`deploy-frontend.yml`) | Push to `main` (frontend changes) | Builds React app with production API URL, syncs to S3, invalidates CloudFront cache |
+
+### Infrastructure Details
+
+| Component | Details |
+|---|---|
+| **EC2 Instance** | `t3.small` (2 vCPU, 2GB RAM), Ubuntu, `us-east-1` |
+| **Static IP** | AWS Elastic IP — persists across stop/start cycles |
+| **SSL (Backend)** | Let's Encrypt via Certbot — auto-renews every 90 days |
+| **SSL (Frontend)** | AWS ACM — managed certificate for CloudFront |
+| **DNS** | Hostinger — `A` record for `api.medsync.space`, `CNAME` for root to CloudFront |
+| **Auto-Start** | `medsync.service` (systemd) — all containers start automatically on boot |
+| **Memory Tuning** | JVM heap + metaspace caps, Postgres tuning, 1GB swap — optimized for 2GB RAM |
+
+### Live URLs
+
+| URL | Purpose |
+|---|---|
+| [medsync.space](https://medsync.space) | Frontend (React dashboard) |
+| [api.medsync.space/nginx-health](https://api.medsync.space/nginx-health) | Backend health check |
+
+---
+
 ## 🛑 Stopping the Application
 
 ```bash
-# Stop all services
-docker compose down
+# Local development
+make down           # Stop all services
+make clean          # Stop and remove all data (volumes)
 
-# Stop and remove all data (volumes)
-docker compose down -v
+# Production (EC2)
+make prod           # Rebuild and restart
+make prod-logs      # Follow live logs
 ```
 
 ---
@@ -441,6 +529,8 @@ This project is open source and available under the [MIT License](LICENSE).
 
 <div align="center">
 
-**Built with ❤️ using Java, Python, React, and a lot of Docker containers.**
+**Built with ❤️ using Java, Python, React, and a mass of Docker containers.**
+
+**[Live Demo](https://medsync.space)** · **[API Health](https://api.medsync.space/nginx-health)**
 
 </div>
