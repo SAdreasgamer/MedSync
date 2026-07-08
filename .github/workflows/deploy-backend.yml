@@ -25,6 +25,7 @@ on:
       - "docker-compose*.yml"
       - "deploy/**"
       - "Makefile"
+  workflow_dispatch:
 
 # Only one deploy at a time
 concurrency:
