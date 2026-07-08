@@ -73,31 +73,22 @@ jobs:
             echo "=== Starting services ==="
             docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --remove-orphans
 
-            echo "=== Waiting for services to start (60s) ==="
-            sleep 60
+            echo "=== Waiting for services to start (120s) ==="
+            sleep 120
 
             echo "=== Health Check ==="
             HEALTHY=true
 
-            # Check each service
-            for port_svc in "4005:auth-service" "4000:patient-service" "4001:billing-service" "4002:analytics-service" "4006:appointment-service" "4004:api-gateway"; do
-              PORT=$(echo $port_svc | cut -d: -f1)
-              SVC=$(echo $port_svc | cut -d: -f2)
-              if curl -sf http://localhost:${PORT}/actuator/health > /dev/null 2>&1; then
+            # Check each service via docker compose (ports not exposed in prod)
+            for SVC in "pm-auth-service" "pm-patient-service" "pm-billing-service" "pm-analytics-service" "pm-appointment-service" "pm-api-gateway" "pm-ai-agent"; do
+              STATUS=$(docker inspect --format='{{.State.Health.Status}}' ${SVC} 2>/dev/null || echo "missing")
+              if [ "$STATUS" = "healthy" ]; then
                 echo "  ✓ ${SVC}"
               else
-                echo "  ✗ ${SVC} — UNHEALTHY"
+                echo "  ✗ ${SVC} — ${STATUS}"
                 HEALTHY=false
               fi
             done
-
-            # Check Python service
-            if curl -sf http://localhost:4003/health > /dev/null 2>&1; then
-              echo "  ✓ ai-agent-service"
-            else
-              echo "  ✗ ai-agent-service — UNHEALTHY"
-              HEALTHY=false
-            fi
 
             if [ "$HEALTHY" = false ]; then
               echo ""
