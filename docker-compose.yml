@@ -65,7 +65,7 @@ services:
     ports:
       - "4005:4005"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4005/actuator/health || exit 1"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/4005"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -90,7 +90,7 @@ services:
       - "4001:4001"
       - "9001:9001"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4001/actuator/health || exit 1"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/4001"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -121,7 +121,7 @@ services:
     ports:
       - "4000:4000"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4000/actuator/health || exit 1"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/4000"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -148,7 +148,7 @@ services:
     ports:
       - "4002:4002"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4002/actuator/health || exit 1"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/4002"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -171,7 +171,7 @@ services:
     ports:
       - "4006:4006"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4006/actuator/health || exit 1"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/4006"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -205,7 +205,7 @@ services:
     ports:
       - "4003:4003"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4003/health || exit 1"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:4003/health')"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -232,7 +232,7 @@ services:
     ports:
       - "4004:4004"
     healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:4004/actuator/health || exit 1"]
+      test: ["CMD", "bash", "-c", "</dev/tcp/localhost/4004"]
       interval: 30s
       timeout: 10s
       retries: 3
