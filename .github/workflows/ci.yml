@@ -82,6 +82,7 @@ jobs:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/test_db
           SPRING_DATASOURCE_USERNAME: admin_user
           SPRING_DATASOURCE_PASSWORD: password
+          SPRING_JPA_HIBERNATE_DDL_AUTO: update
 
   # ==========================================================
   # Python AI Agent Service
