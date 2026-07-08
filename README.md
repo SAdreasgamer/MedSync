@@ -519,14 +519,6 @@ make prod           # Rebuild and restart
 make prod-logs      # Follow live logs
 ```
 
----
-
-## 📄 License
-
-This project is open source and available under the [MIT License](LICENSE).
-
----
-
 <div align="center">
 
 **Built with ❤️ using Java, Python, React, and a mass of Docker containers.**
