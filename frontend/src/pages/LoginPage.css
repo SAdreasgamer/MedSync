@@ -105,3 +105,42 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+.demo-credentials {
+  margin-top: 20px;
+  padding: 14px 16px;
+  background: var(--bg-card);
+  border: 1px dashed var(--border-color);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: border-color var(--transition-fast), background var(--transition-fast);
+}
+
+.demo-credentials:hover {
+  border-color: var(--color-primary);
+  background: var(--bg-page);
+}
+
+.demo-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-primary);
+}
+
+.demo-info {
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--text-heading);
+  font-family: 'SF Mono', 'Fira Code', monospace;
+}
+
+.demo-hint {
+  font-size: 0.7rem;
+  color: var(--text-muted);
+}

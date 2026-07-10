@@ -70,6 +70,15 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
+
+        <div
+          className="demo-credentials"
+          onClick={() => { setEmail('testuser@test.com'); setPassword('password123'); }}
+        >
+          <span className="demo-label">Demo Credentials</span>
+          <span className="demo-info">testuser@test.com / password123</span>
+          <span className="demo-hint">Click to auto-fill</span>
+        </div>
       </div>
     </div>
   );
