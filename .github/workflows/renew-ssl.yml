@@ -35,52 +35,41 @@ jobs:
           script: |
             set -e
 
-            echo "=== 1. Checking Certbot Installation ==="
-            if ! command -v certbot &> /dev/null; then
-              echo "Installing certbot..."
-              sudo apt-get update -qq && sudo apt-get install -y -qq certbot
-            fi
-
-            echo "=== 2. Freeing Port 80 (Stopping Nginx container) ==="
+            echo "=== 1. Checking Port 80 / Nginx ==="
             sudo docker stop pm-nginx || true
 
-            echo "=== 3. Obtaining / Renewing Certificate for api.medsync.space ==="
+            echo "=== 2. Obtaining / Renewing Certificate for api.medsync.space ==="
             sudo certbot certonly --standalone -d api.medsync.space \
               --non-interactive \
               --agree-tos \
               --register-unsafely-without-email \
-              --force-renewal
+              --keep-until-expiring
 
-            echo "=== 4. Identifying Certificate Directory ==="
-            CERT_DIR=""
-            if [ -f "/etc/letsencrypt/live/api.medsync.space/fullchain.pem" ]; then
-              CERT_DIR="/etc/letsencrypt/live/api.medsync.space"
-            elif [ -f "/etc/letsencrypt/live/medsync.space/fullchain.pem" ]; then
-              CERT_DIR="/etc/letsencrypt/live/medsync.space"
-            else
-              CERT_DIR=$(sudo ls -td /etc/letsencrypt/live/*/ 2>/dev/null | head -n 1)
-            fi
+            echo "=== 3. Locating Renewed Certificates (using sudo) ==="
+            LATEST_CERT=$(sudo find /etc/letsencrypt/live/ -name "fullchain.pem" | head -n 1)
+            LATEST_KEY=$(sudo find /etc/letsencrypt/live/ -name "privkey.pem" | head -n 1)
 
-            echo "Certificate source: $CERT_DIR"
+            echo "Found cert: $LATEST_CERT"
+            echo "Found key:  $LATEST_KEY"
 
-            echo "=== 5. Updating /opt/medsync/deploy/ssl Certificates ==="
+            echo "=== 4. Updating /opt/medsync/deploy/ssl ==="
             sudo mkdir -p /opt/medsync/deploy/ssl
-            sudo cp -f "$CERT_DIR/fullchain.pem" /opt/medsync/deploy/ssl/cert.pem
-            sudo cp -f "$CERT_DIR/privkey.pem" /opt/medsync/deploy/ssl/key.pem
+            sudo cp -f "$LATEST_CERT" /opt/medsync/deploy/ssl/cert.pem
+            sudo cp -f "$LATEST_KEY" /opt/medsync/deploy/ssl/key.pem
             sudo chown -R ubuntu:ubuntu /opt/medsync/deploy/ssl
             sudo chmod 644 /opt/medsync/deploy/ssl/cert.pem
             sudo chmod 600 /opt/medsync/deploy/ssl/key.pem
 
-            echo "=== 6. Restarting Nginx Container ==="
+            echo "=== 5. Restarting Nginx Container ==="
             sudo docker start pm-nginx || true
             cd /opt/medsync
             sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx
 
-            echo "=== 7. Setting Up Auto-Renewal Cron Job ==="
-            echo '0 3,15 * * * root certbot certonly --standalone -d api.medsync.space --non-interactive --agree-tos --register-unsafely-without-email --keep-until-expiring --pre-hook "docker stop pm-nginx" --post-hook "cp -f /etc/letsencrypt/live/api.medsync.space/fullchain.pem /opt/medsync/deploy/ssl/cert.pem && cp -f /etc/letsencrypt/live/api.medsync.space/privkey.pem /opt/medsync/deploy/ssl/key.pem && docker start pm-nginx && cd /opt/medsync && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx" > /var/log/certbot-medsync.log 2>&1' | sudo tee /etc/cron.d/medsync-ssl-renew > /dev/null
+            echo "=== 6. Setting Up Auto-Renewal Cron Job ==="
+            echo '0 3,15 * * * root certbot certonly --standalone -d api.medsync.space --non-interactive --agree-tos --register-unsafely-without-email --keep-until-expiring --pre-hook "docker stop pm-nginx" --post-hook "cp -f $(find /etc/letsencrypt/live/ -name fullchain.pem | head -n 1) /opt/medsync/deploy/ssl/cert.pem && cp -f $(find /etc/letsencrypt/live/ -name privkey.pem | head -n 1) /opt/medsync/deploy/ssl/key.pem && docker start pm-nginx && cd /opt/medsync && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx" > /var/log/certbot-medsync.log 2>&1' | sudo tee /etc/cron.d/medsync-ssl-renew > /dev/null
             sudo chmod 644 /etc/cron.d/medsync-ssl-renew
 
-            echo "=== 8. Local Verification on Host ==="
+            echo "=== 7. Local Verification on Host ==="
             openssl x509 -in /opt/medsync/deploy/ssl/cert.pem -noout -dates -subject -issuer
             echo "SSL Renewal successfully completed!"
 
