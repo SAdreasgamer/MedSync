@@ -1,0 +1,99 @@
+# ============================================================
+# MedSync — Renew SSL Certificate on EC2
+# ============================================================
+# Automates Let's Encrypt certificate renewal for api.medsync.space
+# Triggers on push or manually via workflow_dispatch.
+# ============================================================
+
+name: Renew SSL Certificate
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/workflows/renew-ssl.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: renew-ssl
+  cancel-in-progress: false
+
+jobs:
+  renew-ssl:
+    name: Renew SSL on EC2
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Execute Certbot Renewal via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            set -e
+
+            echo "=== 1. Checking Certbot Installation ==="
+            if ! command -v certbot &> /dev/null; then
+              echo "Installing certbot..."
+              sudo apt-get update -qq && sudo apt-get install -y -qq certbot
+            fi
+
+            echo "=== 2. Freeing Port 80 (Stopping Nginx container) ==="
+            sudo docker stop pm-nginx || true
+
+            echo "=== 3. Obtaining / Renewing Certificate for api.medsync.space ==="
+            # Renew or request fresh certificate for api.medsync.space via standalone ACME challenge
+            sudo certbot certonly --standalone -d api.medsync.space \
+              --non-interactive \
+              --agree-tos \
+              --register-unsafely-without-email \
+              --force-renewal
+
+            echo "=== 4. Identifying Certificate Directory ==="
+            CERT_DIR=""
+            if [ -f "/etc/letsencrypt/live/api.medsync.space/fullchain.pem" ]; then
+              CERT_DIR="/etc/letsencrypt/live/api.medsync.space"
+            elif [ -f "/etc/letsencrypt/live/medsync.space/fullchain.pem" ]; then
+              CERT_DIR="/etc/letsencrypt/live/medsync.space"
+            else
+              CERT_DIR=$(sudo ls -td /etc/letsencrypt/live/*/ 2>/dev/null | head -n 1)
+            fi
+
+            echo "Certificate source: $CERT_DIR"
+
+            echo "=== 5. Updating /opt/medsync/deploy/ssl Certificates ==="
+            sudo mkdir -p /opt/medsync/deploy/ssl
+            sudo cp -f "$CERT_DIR/fullchain.pem" /opt/medsync/deploy/ssl/cert.pem
+            sudo cp -f "$CERT_DIR/privkey.pem" /opt/medsync/deploy/ssl/key.pem
+            sudo chown -R ubuntu:ubuntu /opt/medsync/deploy/ssl
+            sudo chmod 644 /opt/medsync/deploy/ssl/cert.pem
+            sudo chmod 600 /opt/medsync/deploy/ssl/key.pem
+
+            echo "=== 6. Restarting Nginx Container ==="
+            sudo docker start pm-nginx || true
+            cd /opt/medsync
+            sudo docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx
+
+            echo "=== 7. Setting Up Auto-Renewal Cron Job ==="
+            sudo tee /etc/cron.d/medsync-ssl-renew > /dev/null << 'CRONEOF'
+0 3,15 * * * root certbot certonly --standalone -d api.medsync.space --non-interactive --agree-tos --register-unsafely-without-email --keep-until-expiring --pre-hook "docker stop pm-nginx" --post-hook "cp -f /etc/letsencrypt/live/api.medsync.space/fullchain.pem /opt/medsync/deploy/ssl/cert.pem && cp -f /etc/letsencrypt/live/api.medsync.space/privkey.pem /opt/medsync/deploy/ssl/key.pem && docker start pm-nginx && cd /opt/medsync && docker compose -f docker-compose.yml -f docker-compose.prod.yml restart nginx" > /var/log/certbot-medsync.log 2>&1
+CRONEOF
+            sudo chmod 644 /etc/cron.d/medsync-ssl-renew
+
+            echo "=== 8. Local Verification on Host ==="
+            openssl x509 -in /opt/medsync/deploy/ssl/cert.pem -noout -dates -subject -issuer
+            echo "SSL Renewal successfully completed!"
+
+      - name: Verify HTTPS Endpoint from Runner
+        run: |
+          echo "Waiting 5 seconds for Nginx to settle..."
+          sleep 5
+          echo "=== Remote Certificate Check ==="
+          echo | openssl s_client -connect api.medsync.space:443 -servername api.medsync.space 2>/dev/null | openssl x509 -noout -dates -subject -issuer
+          echo "=== Health Endpoint Check ==="
+          curl -fsSL https://api.medsync.space/nginx-health
+          echo "HTTPS endpoint is healthy and SSL is valid!"
