@@ -22,22 +22,11 @@ jobs:
       - name: Check and Manage EC2 Instance
         run: |
           set -e
-          echo "Finding instance for IP: ${{ secrets.EC2_HOST }}"
-          INSTANCE_ID=$(aws ec2 describe-instances \
-            --filters "Name=ip-address,Values=${{ secrets.EC2_HOST }}" \
-            --query "Reservations[0].Instances[0].InstanceId" \
-            --output text)
-          
-          if [ "$INSTANCE_ID" == "None" ] || [ -z "$INSTANCE_ID" ]; then
-            echo "Searching by tag or checking all running instances..."
-            aws ec2 describe-instances --query "Reservations[].Instances[].{InstanceId:InstanceId,PublicIp:PublicIpAddress,State:State.Name}" --output table
-            exit 1
-          fi
-
+          INSTANCE_ID="i-08242ab39aaf4b94f"
           echo "Found Instance ID: $INSTANCE_ID"
           
           echo "=== Instance Status Checks ==="
-          aws ec2 describe-instance-status --instance-ids "$INSTANCE_ID" --output json
+          aws ec2 describe-instance-status --instance-ids "$INSTANCE_ID" --output json || true
 
           if [ "${{ github.event.inputs.action }}" == "reboot" ]; then
             echo "Rebooting instance $INSTANCE_ID..."
